@@ -325,15 +325,17 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// Top processes, kernel threads excluded: they can't be signalled, so a
+    /// quit button (HUD) or a runaway-process alert would be useless.
     pub fn top_by_cpu(&self, n: usize) -> Vec<&ProcessItem> {
-        let mut v: Vec<&ProcessItem> = self.processes.iter().collect();
+        let mut v: Vec<&ProcessItem> = self.processes.iter().filter(|p| !p.is_kernel_thread()).collect();
         v.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
         v.truncate(n);
         v
     }
 
     pub fn top_by_memory(&self, n: usize) -> Vec<&ProcessItem> {
-        let mut v: Vec<&ProcessItem> = self.processes.iter().collect();
+        let mut v: Vec<&ProcessItem> = self.processes.iter().filter(|p| !p.is_kernel_thread()).collect();
         v.sort_by_key(|p| std::cmp::Reverse(p.memory));
         v.truncate(n);
         v
@@ -341,6 +343,11 @@ impl Snapshot {
 }
 
 impl ProcessItem {
+    /// kthreadd (pid 2) and its children: kworker, ksoftirqd, …
+    pub fn is_kernel_thread(&self) -> bool {
+        self.pid == 2 || self.ppid == 2
+    }
+
     pub fn disk_total_rate(&self) -> f64 {
         self.disk_read_rate + self.disk_write_rate
     }
@@ -422,6 +429,37 @@ mod tests {
         assert_eq!(ProcessState::from_proc_char('t'), ProcessState::Stopped);
         assert_eq!(ProcessState::from_proc_char('I'), ProcessState::Idle);
         assert_eq!(ProcessState::from_proc_char('?'), ProcessState::Unknown);
+    }
+
+    #[test]
+    fn top_lists_skip_kernel_threads() {
+        let mut s = Snapshot::default();
+        s.processes.push(ProcessItem {
+            pid: 90,
+            ppid: 2,
+            name: "kworker/0:4".into(),
+            cpu: 99.0,
+            memory: 9,
+            ..Default::default()
+        });
+        s.processes.push(ProcessItem {
+            pid: 2,
+            ppid: 0,
+            name: "kthreadd".into(),
+            cpu: 98.0,
+            memory: 8,
+            ..Default::default()
+        });
+        s.processes.push(ProcessItem {
+            pid: 500,
+            ppid: 1,
+            name: "app".into(),
+            cpu: 1.0,
+            memory: 1,
+            ..Default::default()
+        });
+        assert_eq!(s.top_by_cpu(3).iter().map(|p| p.pid).collect::<Vec<_>>(), vec![500]);
+        assert_eq!(s.top_by_memory(3).len(), 1);
     }
 
     #[test]

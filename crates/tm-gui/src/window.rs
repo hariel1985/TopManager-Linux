@@ -200,7 +200,7 @@ impl Pages {
         let Some(snap) = data.snapshot.as_ref() else { return };
         self.performance.record(snap);
         match visible {
-            Some("processes") => self.processes.update(&data.processes, snap.memory.total),
+            Some("processes") => self.processes.update(&data.processes, snap),
             Some("apps") => self.apps.update(&data.processes),
             Some("performance") => self.performance.render(snap),
             Some("power") => self.power.update(snap, data.summary.as_ref()),

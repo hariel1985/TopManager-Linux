@@ -7,7 +7,7 @@ use std::rc::{Rc, Weak};
 use adw::prelude::*;
 use gtk::{gio, glib};
 use tm_core::format::format_bytes;
-use tm_core::model::{ProcessItem, ProcessState};
+use tm_core::model::{ProcessItem, ProcessState, Snapshot};
 
 use crate::client::Client;
 use crate::inspector;
@@ -38,10 +38,6 @@ fn my_uid() -> u32 {
     std::fs::metadata("/proc/self").map(|m| m.uid()).unwrap_or(u32::MAX)
 }
 
-fn is_kernel_thread(p: &ProcessItem) -> bool {
-    p.pid == 2 || p.ppid == 2
-}
-
 fn obj(o: &glib::Object) -> &ProcessObject {
     o.downcast_ref::<ProcessObject>().expect("ProcessObject")
 }
@@ -55,7 +51,7 @@ impl ProcessesPage {
         let (q, m) = (query.clone(), mine_only.clone());
         let filter = gtk::CustomFilter::new(move |o| {
             let p = obj(o).item();
-            if is_kernel_thread(&p) || (m.get() && p.uid != uid) {
+            if p.is_kernel_thread() || (m.get() && p.uid != uid) {
                 return false;
             }
             let q = q.borrow();
@@ -354,7 +350,7 @@ impl ProcessesPage {
     }
 
     /// Merge a new process list into the table.
-    pub fn update(&self, processes: &[ProcessItem], mem_total: u64) {
+    pub fn update(&self, processes: &[ProcessItem], snap: &Snapshot) {
         let mut rows = self.rows.borrow_mut();
         let mut seen = HashSet::with_capacity(processes.len());
         let mut added = Vec::new();
@@ -390,13 +386,27 @@ impl ProcessesPage {
         self.sync_actions();
 
         let visible = self.selection.n_items();
-        let cpu: f64 = processes.iter().map(|p| p.cpu_total).sum();
-        let mem: u64 = processes.iter().map(|p| p.memory).sum();
+        // System-wide figures, the same ones the HUD shows. The processes'
+        // own private memory is smaller: shared memory (tmpfs, GPU and app
+        // buffers) and the kernel's memory belong to no single process.
+        let m = &snap.memory;
+        let private: u64 = processes.iter().map(|p| p.memory).sum();
         self.status.set_label(&format!(
-            "{visible} processes · CPU {cpu:.0}% · {} / {}",
-            format_bytes(mem),
-            format_bytes(mem_total)
+            "{visible} processes · CPU {:.0}% · Memory {} used ({:.0}%), processes {}",
+            snap.cpu.global_usage,
+            format_bytes(m.used),
+            m.usage_percentage(),
+            format_bytes(private)
         ));
+        self.status.set_tooltip_text(Some(&format!(
+            "Used memory: {} of {} (what the system can't hand out without reclaiming).\n\
+             Private memory of all processes: {}.\n\
+             The rest is shared memory ({}: tmpfs, graphics and app buffers) and the kernel's own memory.",
+            format_bytes(m.used),
+            format_bytes(m.total),
+            format_bytes(private),
+            format_bytes(m.shmem)
+        )));
     }
 
     fn show_menu(&self, cell: &gtk::Widget, x: f64, y: f64, position: u32) {
