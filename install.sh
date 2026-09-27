@@ -49,6 +49,7 @@ VERSION="latest"
 MODE=""
 ENABLE=1
 PURGE=0
+LOCAL=0
 while [ $# -gt 0 ]; do
     case "$1" in
         install|update|uninstall|status) CMD="$1" ;;
@@ -60,6 +61,9 @@ while [ $# -gt 0 ]; do
         --system) MODE=system ;;
         --no-enable) ENABLE=0 ;;
         --purge) PURGE=1 ;;
+        # Internal: install from this script's own directory (a downloaded
+        # release) and record --repo as its origin.
+        --local) LOCAL=1 ;;
         -h|--help) usage; exit 0 ;;
         *) usage >&2; die "unknown argument '$1'" ;;
     esac
@@ -279,7 +283,7 @@ cmd_install() {
     repo="${repo:-$DEFAULT_REPO}"
 
     # Running from an extracted release tarball, and no remote requested.
-    if [ -z "$REPO" ] && [ "$VERSION" = latest ] && [ -n "$here" ] && [ -x "$here/bin/topmanagerd" ]; then
+    if { [ "$LOCAL" = 1 ] || { [ -z "$REPO" ] && [ "$VERSION" = latest ]; }; } && [ -n "$here" ] && [ -x "$here/bin/topmanagerd" ]; then
         install_payload "$here" "$repo"
         return
     fi
@@ -292,6 +296,15 @@ cmd_install() {
     DOWNLOAD_DIR="$(mktemp -d)"
     trap 'rm -rf "$DOWNLOAD_DIR"' EXIT
     fetch_release "$repo" "$tag" "$DOWNLOAD_DIR"
+    # Let the downloaded release install itself: an update must use the new
+    # version's file layout, not this (older) script's. Releases before 0.2.1
+    # don't know --local, so those are installed by this script.
+    if grep -q -- '--local) LOCAL=1' "$PAYLOAD/install.sh"; then
+        local args=(install --local --repo "$repo" "--$MODE")
+        [ "$ENABLE" = 1 ] || args+=(--no-enable)
+        bash "$PAYLOAD/install.sh" "${args[@]}"
+        return
+    fi
     install_payload "$PAYLOAD" "$repo"
 }
 
