@@ -70,6 +70,25 @@ if [ -z "$MODE" ]; then
 fi
 
 # ------------------------------------------------------------------ layout
+# An XDG base directory from the environment, used only if it is absolute and
+# writable by us (walking up to the first existing ancestor). A value that
+# points into someone else's home, e.g. from a system-wide /etc/environment,
+# falls back to the default under our own $HOME. topmanagerd applies the
+# same rule, so both always agree.
+xdg_dir() {
+    local var="$1" fallback="$HOME/$2" value="${!1:-}" probe
+    if [ -n "$value" ] && [ "${value#/}" != "$value" ]; then
+        probe="$value"
+        while [ ! -e "$probe" ]; do probe="$(dirname "$probe")"; done
+        if [ -w "$probe" ]; then
+            echo "$value"
+            return
+        fi
+        echo "topmanager-install: ignoring $var=$value (not writable), using $fallback" >&2
+    fi
+    echo "$fallback"
+}
+
 set_layout() {
     if [ "$MODE" = system ]; then
         [ "$(id -u)" -eq 0 ] || die "--system needs root (try: sudo $0 $CMD --system)"
@@ -81,8 +100,8 @@ set_layout() {
         RECEIPT_DIR="$DATA_DIR/topmanager"
     else
         BIN_DIR="$HOME/.local/bin"
-        DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
-        UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+        DATA_DIR="$(xdg_dir XDG_DATA_HOME .local/share)"
+        UNIT_DIR="$(xdg_dir XDG_CONFIG_HOME .config)/systemd/user"
         # systemd expands %h to the home directory of whoever runs the unit.
         if [ "$BIN_DIR" = "$HOME/.local/bin" ]; then UNIT_BIN_DIR="%h/.local/bin"; else UNIT_BIN_DIR="$BIN_DIR"; fi
         RECEIPT_DIR="$DATA_DIR/topmanager"
@@ -276,7 +295,7 @@ cmd_uninstall() {
     rmdir "$RECEIPT_DIR" 2>/dev/null || true
     user_systemctl daemon-reload || true
     if [ "$PURGE" = 1 ]; then
-        rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/topmanager" "${XDG_STATE_HOME:-$HOME/.local/state}/topmanager"
+        rm -rf "$(xdg_dir XDG_CONFIG_HOME .config)/topmanager" "$(xdg_dir XDG_STATE_HOME .local/state)/topmanager"
         say "Settings and history deleted"
     else
         echo "    Settings and history kept (use --purge to delete them)"
