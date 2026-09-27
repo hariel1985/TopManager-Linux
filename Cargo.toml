@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = ["crates/tm-core", "crates/tm-collect", "crates/tm-daemon"]
+
+[workspace.package]
+# Single source of truth for the release version. `scripts/bump-version.sh`
+# propagates it to the Shell extension and data files; the release workflow
+# refuses a tag that doesn't match it.
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/hariel1985/TopManager-Linux"
+rust-version = "1.85"
+
+[workspace.dependencies]
+tm-core = { path = "crates/tm-core" }
+tm-collect = { path = "crates/tm-collect" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+libc = "0.2"
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "s"

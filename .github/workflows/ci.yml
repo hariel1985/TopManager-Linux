@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --all --locked
+      - run: scripts/check-version.sh
+
+  # Package the release tarball, then install and run it as a *different*
+  # user with a non-standard home directory. Fails if anything assumes the
+  # build user's name or paths.
+  portable-install:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools dbus libglib2.0-bin
+      - run: scripts/package.sh
+      - name: Install and run as another user
+        run: |
+          set -eux
+          sudo useradd --create-home --home-dir /srv/elsewhere/someone-else tmtester
+          PAYLOAD="$PWD/dist/$(ls dist | grep -v '\.tar\.gz' | head -n1)"
+          sudo cp -r "$PAYLOAD" /srv/elsewhere/payload
+          sudo chown -R tmtester /srv/elsewhere/payload
+          sudo -u tmtester -H bash -eux -c '
+            /srv/elsewhere/payload/install.sh --user --no-enable
+            test -x ~/.local/bin/topmanagerd
+            test -f ~/.local/share/gnome-shell/extensions/topmanager@hariel1985.github.io/extension.js
+            grep -q "%h/.local/bin/topmanagerd" ~/.config/systemd/user/topmanagerd.service
+            ~/.local/bin/topmanagerd summary
+            dbus-run-session -- bash -eux -c "
+              ~/.local/bin/topmanagerd run &
+              for i in \$(seq 1 20); do
+                gdbus call --session --dest io.github.hariel1985.TopManager \
+                  --object-path /io/github/hariel1985/TopManager \
+                  --method io.github.hariel1985.TopManager1.GetSummary | grep -q ready.:true && break
+                sleep 0.5
+              done
+              gdbus call --session --dest io.github.hariel1985.TopManager \
+                --object-path /io/github/hariel1985/TopManager \
+                --method io.github.hariel1985.TopManager1.SetSetting hud.metric \"\\\"health\\\"\"
+              kill %1
+            "
+            grep -q "metric = \"health\"" ~/.config/topmanager/config.toml
+            ~/.local/bin/topmanagerd export /tmp/tm-backup.json --with-history
+            ~/.local/bin/topmanager-install uninstall --purge
+            test ! -e ~/.local/bin/topmanagerd
+          '
+          # Nothing the other user got may point at the build user or checkout.
+          if sudo grep -rIl -e "$GITHUB_WORKSPACE" -e "/home/runner" /srv/elsewhere/someone-else /tmp/tm-backup.json; then
+            echo "found build-machine paths in the installed files" >&2
+            exit 1
+          fi

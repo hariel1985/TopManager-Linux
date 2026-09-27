@@ -1,0 +1,8 @@
+# D-Bus activation: the first client (usually the top-bar HUD) starts
+# topmanagerd through systemd. Exec is required by the spec but unused
+# when SystemdService is set, and it keeps this file identical for every
+# user and install location.
+[D-BUS Service]
+Name=io.github.hariel1985.TopManager
+Exec=/bin/false
+SystemdService=topmanagerd.service

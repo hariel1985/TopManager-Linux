@@ -1,0 +1,8 @@
+{
+  "uuid": "topmanager@hariel1985.github.io",
+  "name": "TopManager HUD",
+  "description": "Top-bar system monitor: CPU, memory, network, GPU and battery with sparklines, a 0–100 health score, alerts and one-click quit for the top processes.\n\nRequires the topmanagerd service (installed together with TopManager).",
+  "url": "https://github.com/hariel1985/TopManager-Linux",
+  "shell-version": ["46", "47", "48", "49"],
+  "version-name": "0.1.0"
+}

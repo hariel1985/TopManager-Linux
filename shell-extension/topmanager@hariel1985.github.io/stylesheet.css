@@ -1,0 +1,137 @@
+/* TopManager HUD. Colors follow the GNOME palette. */
+
+.tm-panel-label {
+    font-feature-settings: "tnum";
+    padding: 0 2px;
+}
+
+.tm-panel-spark {
+    width: 36px;
+    height: 14px;
+    margin-left: 4px;
+}
+
+.tm-badge {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: #ff7800;
+    margin-top: 4px;
+    margin-left: 1px;
+}
+
+.tm-menu-item {
+    padding: 0;
+}
+
+.tm-menu-item:hover,
+.tm-menu-item:active {
+    background-color: transparent;
+}
+
+.tm-menu {
+    min-width: 320px;
+    padding: 6px 10px 2px;
+    spacing: 8px;
+}
+
+.tm-header {
+    spacing: 12px;
+    padding-bottom: 2px;
+}
+
+.tm-score {
+    font-size: 28px;
+    font-weight: 800;
+    font-feature-settings: "tnum";
+    min-width: 48px;
+}
+
+.tm-rating {
+    font-weight: bold;
+}
+
+.tm-diagnosis,
+.tm-caption,
+.tm-status {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.tm-status {
+    color: #f66151;
+}
+
+.tm-section {
+    spacing: 3px;
+}
+
+.tm-section-header {
+    margin-top: 2px;
+    spacing: 4px;
+}
+
+.tm-row {
+    spacing: 8px;
+    min-height: 20px;
+}
+
+.tm-row-title {
+    min-width: 88px;
+}
+
+.tm-row-value,
+.tm-proc-name {
+    font-feature-settings: "tnum";
+}
+
+.tm-row-value {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.tm-proc-name {
+    max-width: 190px;
+}
+
+.tm-sparkline {
+    width: 64px;
+    height: 16px;
+    color: #62a0ea;
+}
+
+.tm-chip {
+    font-size: 0.85em;
+    padding: 1px 8px;
+    border-radius: 99px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.tm-chip:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.tm-chip:checked {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.tm-quit {
+    padding: 2px;
+    border-radius: 99px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.tm-quit:hover,
+.tm-quit:focus {
+    background-color: rgba(224, 27, 36, 0.35);
+    color: #ffffff;
+}
+
+.tm-alert-warning StIcon { color: #f6d32d; }
+.tm-alert-critical StIcon { color: #f66151; }
+.tm-alert-info StIcon { color: #62a0ea; }
+
+.tm-health-excellent { color: #57e389; }
+.tm-health-good { color: #8ff0a4; }
+.tm-health-fair { color: #ffa348; }
+.tm-health-poor { color: #f66151; }

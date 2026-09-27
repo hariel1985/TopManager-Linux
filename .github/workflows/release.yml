@@ -1,0 +1,55 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (see scripts/bump-version.sh) builds static x86_64 and
+# aarch64 tarballs and publishes them, with checksums and install.sh, as the
+# GitHub release that `install.sh --repo OWNER/NAME` installs from.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-version.sh "$GITHUB_REF_NAME"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch }}-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo test --all --locked
+      - run: scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: topmanager-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+          cp ../install.sh .
+          gh release create "$GITHUB_REF_NAME" *.tar.gz SHA256SUMS install.sh \
+            --verify-tag --title "TopManager ${GITHUB_REF_NAME#v}" --generate-notes

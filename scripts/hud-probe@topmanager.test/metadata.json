@@ -1,0 +1,6 @@
+{
+  "uuid": "hud-probe@topmanager.test",
+  "name": "TopManager HUD test probe",
+  "description": "Test-only: opens the TopManager HUD menu, screenshots it and reports its state. Used by scripts/test-hud.sh in an isolated headless shell.",
+  "shell-version": ["46", "47", "48", "49"]
+}

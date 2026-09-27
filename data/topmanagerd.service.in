@@ -1,0 +1,20 @@
+[Unit]
+Description=TopManager system monitor service
+Documentation=https://github.com/hariel1985/TopManager-Linux
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=io.github.hariel1985.TopManager
+# @BINDIR@ is filled in by install.sh: "%h/.local/bin" for per-user installs
+# (%h is systemd's home-directory specifier, so no user name is baked in),
+# or the system prefix.
+ExecStart=@BINDIR@/topmanagerd run
+Restart=on-failure
+RestartSec=5
+Nice=5
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=graphical-session.target

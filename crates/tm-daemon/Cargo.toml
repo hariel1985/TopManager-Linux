@@ -1,0 +1,23 @@
+[package]
+name = "tm-daemon"
+description = "topmanagerd: TopManager's background sampler, alert engine and D-Bus service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "topmanagerd"
+path = "src/main.rs"
+
+[dependencies]
+tm-core.workspace = true
+tm-collect.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["rt", "macros", "time", "signal", "sync"] }
+
+[dev-dependencies]
+tempfile.workspace = true

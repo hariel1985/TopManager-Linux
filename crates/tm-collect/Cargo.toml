@@ -1,0 +1,15 @@
+[package]
+name = "tm-collect"
+description = "Linux metric collectors for TopManager (/proc, /sys)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tm-core.workspace = true
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
