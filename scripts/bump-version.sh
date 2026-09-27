@@ -20,7 +20,7 @@ cargo update --workspace --quiet
 
 scripts/check-version.sh "v$NEW"
 git add Cargo.toml Cargo.lock shell-extension/*/metadata.json
-git commit -q -m "Release v$NEW"
+git commit -q -m "Release v$NEW" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git tag -a "v$NEW" -m "TopManager $NEW"
 echo "Tagged v$NEW."
 if [ "$PUSH" = "--push" ]; then
