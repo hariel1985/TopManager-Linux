@@ -5,7 +5,7 @@
 set -euxo pipefail
 
 call() {
-    gdbus call --session --dest io.github.hariel1985.TopManager \
+    gdbus call --session --dest io.github.hariel1985.TopManager.Daemon \
         --object-path /io/github/hariel1985/TopManager --method "io.github.hariel1985.TopManager1.$1" "${@:2}"
 }
 
@@ -31,8 +31,11 @@ BACKUP="$2"
 
 "$PAYLOAD/install.sh" --user --no-enable
 test -x ~/.local/bin/topmanagerd
+test -x ~/.local/bin/topmanager
+grep "^Exec=$HOME/.local/bin/topmanager$" ~/.local/share/applications/io.github.hariel1985.TopManager.desktop >/dev/null
+test -f ~/.local/share/icons/hicolor/256x256/apps/io.github.hariel1985.TopManager.png
 test -f ~/.local/share/gnome-shell/extensions/topmanager@hariel1985.github.io/extension.js
-test -f ~/.local/share/dbus-1/services/io.github.hariel1985.TopManager.service
+test -f ~/.local/share/dbus-1/services/io.github.hariel1985.TopManager.Daemon.service
 grep '%h/.local/bin/topmanagerd' ~/.config/systemd/user/topmanagerd.service >/dev/null
 ~/.local/bin/topmanagerd summary
 
@@ -42,4 +45,6 @@ grep 'metric = "health"' ~/.config/topmanager/config.toml >/dev/null
 ~/.local/bin/topmanagerd export "$BACKUP" --with-history
 ~/.local/bin/topmanager-install uninstall --purge
 test ! -e ~/.local/bin/topmanagerd
+test ! -e ~/.local/bin/topmanager
+test ! -e ~/.local/share/applications/io.github.hariel1985.TopManager.desktop
 test ! -e ~/.config/topmanager

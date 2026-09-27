@@ -306,8 +306,10 @@ pub struct ProcessDetail {
     pub cgroup: Option<String>,
 }
 
-/// Everything one sampling tick produces.
+/// Everything one sampling tick produces. `GetSnapshot` sends it without the
+/// process list, hence the defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Snapshot {
     /// Unix seconds.
     pub timestamp: f64,

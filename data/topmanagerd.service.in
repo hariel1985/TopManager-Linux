@@ -6,7 +6,7 @@ After=graphical-session.target
 
 [Service]
 Type=dbus
-BusName=io.github.hariel1985.TopManager
+BusName=io.github.hariel1985.TopManager.Daemon
 # @BINDIR@ is filled in by install.sh: "%h/.local/bin" for per-user installs
 # (%h is systemd's home-directory specifier, so no user name is baked in),
 # or the system prefix.

@@ -9,6 +9,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -18,10 +19,54 @@ import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/ex
 
 import {formatBytes, formatMinutes, formatRate, healthClass} from './lib/format.js';
 
-const BUS_NAME = 'io.github.hariel1985.TopManager';
+const BUS_NAME = 'io.github.hariel1985.TopManager.Daemon';
 const OBJECT_PATH = '/io/github/hariel1985/TopManager';
 const INTERFACE = 'io.github.hariel1985.TopManager1';
 const GUI_DESKTOP_IDS = ['io.github.hariel1985.TopManager.desktop', 'org.gnome.SystemMonitor.desktop', 'gnome-system-monitor.desktop'];
+
+// A tiny bridge for the TopManager window's Apps page. On Wayland only the
+// compositor can raise or minimize another app's windows, so the window asks
+// the Shell (this extension) to do it. Exported on the Shell's own bus
+// connection, i.e. under the name org.gnome.Shell.
+const BRIDGE_PATH = '/io/github/hariel1985/TopManager/Shell';
+const BRIDGE_XML = `<node>
+  <interface name="io.github.hariel1985.TopManager.Shell1">
+    <method name="GetRunningApps"><arg type="s" direction="out" name="apps"/></method>
+    <method name="ActivateApp"><arg type="s" direction="in" name="appId"/><arg type="b" direction="out" name="ok"/></method>
+    <method name="MinimizeApp"><arg type="s" direction="in" name="appId"/><arg type="b" direction="out" name="ok"/></method>
+  </interface>
+</node>`;
+
+class ShellBridge {
+    _app(appId) {
+        return Shell.AppSystem.get_default().lookup_app(`${appId}.desktop`);
+    }
+
+    GetRunningApps() {
+        return JSON.stringify(Shell.AppSystem.get_default().get_running().map(app => ({
+            id: (app.get_id() ?? '').replace(/\.desktop$/, ''),
+            name: app.get_name(),
+            windows: app.get_n_windows(),
+            pids: app.get_pids(),
+        })));
+    }
+
+    ActivateApp(appId) {
+        const app = this._app(appId);
+        if (!app || app.get_state() !== Shell.AppState.RUNNING)
+            return false;
+        app.activate();
+        return true;
+    }
+
+    MinimizeApp(appId) {
+        const app = this._app(appId);
+        if (!app)
+            return false;
+        app.get_windows().forEach(w => w.minimize());
+        return true;
+    }
+}
 
 function callDaemon(method, params, replyType, callback) {
     Gio.DBus.session.call(
@@ -103,7 +148,10 @@ class Indicator extends PanelMenu.Button {
 
         // ---- panel ----
         const panelBox = new St.BoxLayout({style_class: 'panel-status-menu-box tm-panel'});
-        this._panelIcon = new St.Icon({icon_name: 'utilities-system-monitor-symbolic', style_class: 'system-status-icon'});
+        this._panelIcon = new St.Icon({
+            gicon: Gio.FileIcon.new(Gio.File.new_for_path(`${extension.path}/icons/topmanager-symbolic.svg`)),
+            style_class: 'system-status-icon',
+        });
         this._panelLabel = new St.Label({text: '—', style_class: 'tm-panel-label', y_align: Clutter.ActorAlign.CENTER});
         this._panelSpark = new Sparkline({style_class: 'tm-sparkline tm-panel-spark', y_align: Clutter.ActorAlign.CENTER, visible: false});
         this._badge = new St.Widget({style_class: 'tm-badge', visible: false, y_align: Clutter.ActorAlign.START});
@@ -416,6 +464,9 @@ export default class TopManagerHudExtension extends Extension {
             BUS_NAME, INTERFACE, 'SettingsChanged', OBJECT_PATH, null, Gio.DBusSignalFlags.NONE,
             () => this._fetchSummary());
 
+        this._bridge = Gio.DBusExportedObject.wrapJSObject(BRIDGE_XML, new ShellBridge());
+        this._bridge.export(Gio.DBus.session, BRIDGE_PATH);
+
         // AUTO_START D-Bus-activates topmanagerd if it isn't running yet.
         this._watchId = Gio.bus_watch_name(
             Gio.BusType.SESSION, BUS_NAME, Gio.BusNameWatcherFlags.AUTO_START,
@@ -434,6 +485,8 @@ export default class TopManagerHudExtension extends Extension {
     }
 
     disable() {
+        this._bridge?.unexport();
+        this._bridge = null;
         if (this._watchId) {
             Gio.bus_unwatch_name(this._watchId);
             this._watchId = 0;

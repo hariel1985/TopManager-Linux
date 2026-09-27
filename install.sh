@@ -16,8 +16,11 @@ set -euo pipefail
 
 DEFAULT_REPO="hariel1985/TopManager-Linux"
 UUID="topmanager@hariel1985.github.io"
-BUS_NAME="io.github.hariel1985.TopManager"
+BUS_NAME="io.github.hariel1985.TopManager.Daemon"
+# 0.1.0 used the app id as the daemon's bus name; its activation file is removed.
+LEGACY_BUS_NAME="io.github.hariel1985.TopManager"
 UNIT="topmanagerd.service"
+APP_ID="io.github.hariel1985.TopManager"
 
 die() { echo "topmanager-install: $*" >&2; exit 1; }
 say() { echo "==> $*"; }
@@ -107,6 +110,8 @@ set_layout() {
         RECEIPT_DIR="$DATA_DIR/topmanager"
     fi
     EXT_DIR="$DATA_DIR/gnome-shell/extensions/$UUID"
+    APPS_DIR="$DATA_DIR/applications"
+    ICON_DIR="$DATA_DIR/icons/hicolor"
     DBUS_DIR="$DATA_DIR/dbus-1/services"
     RECEIPT="$RECEIPT_DIR/install.json"
 }
@@ -175,12 +180,35 @@ install_payload() {
     install -Dm755 "$src/bin/topmanagerd" "$BIN_DIR/topmanagerd"
     install -Dm755 "$src/install.sh" "$BIN_DIR/topmanager-install"
     install -Dm644 "$src/share/dbus-1/services/$BUS_NAME.service" "$DBUS_DIR/$BUS_NAME.service"
+    rm -f "$DBUS_DIR/$LEGACY_BUS_NAME.service"
     mkdir -p "$UNIT_DIR"
     sed "s|@BINDIR@|$UNIT_BIN_DIR|g" "$src/share/systemd/topmanagerd.service.in" > "$UNIT_DIR/$UNIT"
     chmod 644 "$UNIT_DIR/$UNIT"
     rm -rf "$EXT_DIR"
     mkdir -p "$(dirname "$EXT_DIR")"
     cp -r "$src/share/gnome-shell/extensions/$UUID" "$EXT_DIR"
+
+    # The window (dynamically linked against the system's GTK 4/libadwaita).
+    if [ -x "$src/bin/topmanager" ]; then
+        install -Dm755 "$src/bin/topmanager" "$BIN_DIR/topmanager"
+        mkdir -p "$APPS_DIR"
+        # Desktop files can't expand ~, so the absolute path is written here,
+        # at install time, from this user's own $HOME.
+        sed "s|@BINDIR@|$BIN_DIR|g" "$src/share/applications/$APP_ID.desktop.in" > "$APPS_DIR/$APP_ID.desktop"
+        chmod 644 "$APPS_DIR/$APP_ID.desktop"
+        for icon in "$src"/share/icons/hicolor/*/apps/$APP_ID.png; do
+            size="$(basename "$(dirname "$(dirname "$icon")")")"
+            install -Dm644 "$icon" "$ICON_DIR/$size/apps/$APP_ID.png"
+        done
+        install -Dm644 "$src/share/icons/hicolor/symbolic/apps/$APP_ID-symbolic.svg" \
+            "$ICON_DIR/symbolic/apps/$APP_ID-symbolic.svg"
+        have gtk-update-icon-cache && gtk-update-icon-cache -qtf "$ICON_DIR" 2>/dev/null || true
+        have update-desktop-database && update-desktop-database -q "$APPS_DIR" 2>/dev/null || true
+        if have ldd && ldd "$BIN_DIR/topmanager" 2>/dev/null | grep -q "not found"; then
+            echo "    note: the TopManager window needs GTK 4 and libadwaita:"
+            echo "          sudo apt install libgtk-4-1 libadwaita-1-0"
+        fi
+    fi
 
     mkdir -p "$RECEIPT_DIR"
     cat > "$RECEIPT" <<EOF
@@ -289,7 +317,9 @@ cmd_uninstall() {
     if [ "$MODE" = user ] && have gnome-extensions; then
         gnome-extensions disable "$UUID" 2>/dev/null || true
     fi
-    rm -f "$BIN_DIR/topmanagerd" "$UNIT_DIR/$UNIT" "$DBUS_DIR/$BUS_NAME.service"
+    rm -f "$BIN_DIR/topmanagerd" "$BIN_DIR/topmanager" "$UNIT_DIR/$UNIT" "$DBUS_DIR/$BUS_NAME.service" "$DBUS_DIR/$LEGACY_BUS_NAME.service" \
+        "$APPS_DIR/$APP_ID.desktop"
+    rm -f "$ICON_DIR"/*/apps/"$APP_ID.png" "$ICON_DIR/symbolic/apps/$APP_ID-symbolic.svg"
     rm -rf "$EXT_DIR"
     rm -f "$RECEIPT"
     rmdir "$RECEIPT_DIR" 2>/dev/null || true

@@ -3,6 +3,6 @@
 # when SystemdService is set, and it keeps this file identical for every
 # user and install location.
 [D-BUS Service]
-Name=io.github.hariel1985.TopManager
+Name=io.github.hariel1985.TopManager.Daemon
 Exec=/bin/false
 SystemdService=topmanagerd.service

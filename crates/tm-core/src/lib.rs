@@ -14,7 +14,11 @@ pub mod settings;
 
 /// D-Bus identity shared by the daemon, the GUI and the Shell extension.
 pub mod bus {
-    pub const NAME: &str = "io.github.hariel1985.TopManager";
+    /// The daemon's bus name. Deliberately not the app id: the GUI's
+    /// GApplication owns `APP_ID` on the bus to stay single-instance.
+    pub const NAME: &str = "io.github.hariel1985.TopManager.Daemon";
+    /// Desktop app id (window, .desktop file, icon, notifications).
+    pub const APP_ID: &str = "io.github.hariel1985.TopManager";
     pub const PATH: &str = "/io/github/hariel1985/TopManager";
     pub const INTERFACE: &str = "io.github.hariel1985.TopManager1";
     /// Bumped on incompatible changes to the JSON payloads.

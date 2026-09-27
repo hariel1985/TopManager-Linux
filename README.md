@@ -6,8 +6,21 @@ plain-language diagnosis, proactive **alerts**, and one-click quit for the
 processes eating your machine.
 
 Linux/GNOME rewrite of [TopManager for macOS](https://github.com/hariel1985/TopManager),
-in Rust. Status: **early (0.x)** — the service and the top-bar HUD work; the
-full GTK4/libadwaita window is next.
+in Rust, with a GTK 4 / libadwaita window:
+
+- **Processes** — sortable, searchable table (CPU, memory, disk I/O, energy,
+  threads, user, state), right-click menu, suspend/resume/end/force quit, and an
+  inspector with path, command line, PSS/USS memory, open files.
+- **Apps** — running desktop apps grouped from their systemd scopes, with switch
+  to / minimize (through the HUD extension) and quit.
+- **Performance** — CPU (per core, P/E cores), memory, network and GPU charts;
+  live or 5 min – 24 h from the persistent history.
+- **Power & Storage** — health score and diagnosis, alerts, battery, system,
+  graphics, volumes, network interfaces.
+- **Preferences** — refresh rate, notifications, start at login, HUD metric,
+  alert thresholds, backup export/import.
+
+Status: **0.x** — everything above works; packaging (.deb) and translations are next.
 
 ## Install
 
@@ -33,7 +46,8 @@ On Wayland, GNOME loads a newly installed extension at the next login, so log
 out and back in once to see the HUD.
 
 Requirements: GNOME Shell 46–49, systemd user session, x86_64 or aarch64.
-The service binary is statically linked and runs on any distribution.
+The service binary is statically linked and runs on any distribution; the
+window needs GTK ≥ 4.14 and libadwaita ≥ 1.5 (Debian 13, Ubuntu 24.04 and newer).
 
 ## Moving to another machine or user
 
@@ -54,15 +68,17 @@ topmanagerd import ~/topmanager-backup.json [--with-history]   # on the new mach
 
 ```
 topmanagerd (Rust, systemd user service)  ── D-Bus ──▶  GNOME Shell extension (top-bar HUD)
-  collectors: /proc, /sys, PSI, sysfs power                   renders only, no polling
-  health score, alert engine, history, notifications
+  collectors: /proc, /sys, PSI, sysfs power      │           renders only; also a small bridge
+  health score, alert engine, history,           │           (org.gnome.Shell …/TopManager/Shell)
+  notifications                                  └──────▶  topmanager (GTK 4 / libadwaita window)
 ```
 
 - `crates/tm-core` — platform-neutral logic ported from the macOS app
   (health score, alerts, history math, formatting).
 - `crates/tm-collect` — Linux collectors (`/proc`, `/sys`), tested against fixture trees.
-- `crates/tm-daemon` — `topmanagerd`: sampler, D-Bus API `io.github.hariel1985.TopManager1`,
-  history (JSON lines), notifications, export/import.
+- `crates/tm-daemon` — `topmanagerd`: sampler, D-Bus service `io.github.hariel1985.TopManager.Daemon`
+  (interface `io.github.hariel1985.TopManager1`), history (JSON lines), notifications, export/import.
+- `crates/tm-gui` — `topmanager`, the main window (app id `io.github.hariel1985.TopManager`).
 - `shell-extension/` — the top-bar HUD (GJS).
 
 Useful commands: `topmanagerd summary` (human-readable snapshot),
@@ -73,7 +89,7 @@ Useful commands: `topmanagerd summary` (human-readable snapshot),
 ```bash
 cargo test                  # all unit tests
 scripts/package.sh          # dist/topmanager-<version>-<arch>.tar.gz
-scripts/test-hud.sh         # run the HUD in an isolated headless GNOME Shell and screenshot it
+scripts/test-hud.sh         # run the HUD and the window in an isolated headless GNOME Shell, screenshot both
 ```
 
 Releases: `scripts/bump-version.sh X.Y.Z --push` sets the version everywhere,

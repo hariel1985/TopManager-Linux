@@ -82,7 +82,26 @@ dbus-run-session --config-file="$ROOT/session.conf" -- bash -c '
         kill -0 $SHELL_PID 2>/dev/null || break
         sleep 1
     done
-    gdbus call --session --dest io.github.hariel1985.TopManager --object-path /io/github/hariel1985/TopManager \
+    # The main window, page by page, inside the same headless shell.
+    if [ -f "$TM_PROBE_OUT/done" ] && [ -x "$HOME/.local/bin/topmanager" ]; then
+        shoot() {
+            echo "$1" > "$TM_PROBE_OUT/request"
+            for _ in $(seq 1 60); do [ -f "$TM_PROBE_OUT/request" ] || break; sleep 0.25; done
+        }
+        export WAYLAND_DISPLAY=wayland-0 GDK_BACKEND=wayland
+        "$HOME/.local/bin/topmanager" --page processes > "$TM_PROBE_OUT/topmanager.log" 2>&1 &
+        sleep 8
+        shoot gui-processes
+        for page in apps performance power; do
+            "$HOME/.local/bin/topmanager" --page "$page" >> "$TM_PROBE_OUT/topmanager.log" 2>&1
+            sleep 4
+            shoot "gui-$page"
+        done
+        "$HOME/.local/bin/topmanager" --page processes --preferences >> "$TM_PROBE_OUT/topmanager.log" 2>&1
+        sleep 3
+        shoot gui-preferences
+    fi
+    gdbus call --session --dest io.github.hariel1985.TopManager.Daemon --object-path /io/github/hariel1985/TopManager \
         --method io.github.hariel1985.TopManager1.GetSettings > "$TM_PROBE_OUT/settings-via-dbus.txt" 2>&1 || true
     kill $SHELL_PID $DAEMON 2>/dev/null || true
     wait 2>/dev/null || true

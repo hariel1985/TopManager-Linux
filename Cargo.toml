@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/tm-core", "crates/tm-collect", "crates/tm-daemon"]
+members = ["crates/tm-core", "crates/tm-collect", "crates/tm-daemon", "crates/tm-gui"]
 
 [workspace.package]
 # Single source of truth for the release version. `scripts/bump-version.sh`

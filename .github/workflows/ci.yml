@@ -13,6 +13,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      # Ubuntu 24.04 = the oldest supported GTK (4.14) and libadwaita (1.5).
+      - run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --all --locked
@@ -28,7 +30,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools dbus libglib2.0-bin
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools dbus libglib2.0-bin libgtk-4-dev libadwaita-1-dev
       - run: scripts/package.sh
       - name: Install and run as another user
         run: |

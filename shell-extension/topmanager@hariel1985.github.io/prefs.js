@@ -8,7 +8,7 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const BUS_NAME = 'io.github.hariel1985.TopManager';
+const BUS_NAME = 'io.github.hariel1985.TopManager.Daemon';
 const OBJECT_PATH = '/io/github/hariel1985/TopManager';
 const INTERFACE = 'io.github.hariel1985.TopManager1';
 

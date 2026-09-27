@@ -2,8 +2,10 @@
 # Build a release tarball for the host architecture:
 #   dist/topmanager-<version>-<arch>.tar.gz
 #
-# The daemon is linked statically against musl, so the tarball runs on any
-# Linux distribution regardless of its glibc version.
+# The daemon is linked statically against musl, so it runs on any Linux
+# distribution regardless of its glibc version. The window links the system's
+# GTK 4 / libadwaita, so it is built on the oldest supported target
+# (Ubuntu 24.04: GTK 4.14, libadwaita 1.5) in CI.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,12 +17,17 @@ NAME="topmanager-$VERSION-$ARCH"
 OUT="dist/$NAME"
 
 cargo build --release --locked --target "$TARGET" -p tm-daemon
+cargo build --release --locked -p tm-gui
 
 rm -rf "$OUT"
-mkdir -p "$OUT/bin" "$OUT/share/dbus-1/services" "$OUT/share/systemd" "$OUT/share/gnome-shell/extensions"
+mkdir -p "$OUT/bin" "$OUT/share/dbus-1/services" "$OUT/share/systemd" "$OUT/share/gnome-shell/extensions" \
+    "$OUT/share/applications"
 install -m755 "target/$TARGET/release/topmanagerd" "$OUT/bin/"
+install -m755 target/release/topmanager "$OUT/bin/"
+install -m644 data/io.github.hariel1985.TopManager.desktop.in "$OUT/share/applications/"
+cp -r data/icons "$OUT/share/"
 install -m755 install.sh "$OUT/"
-install -m644 data/io.github.hariel1985.TopManager.service "$OUT/share/dbus-1/services/"
+install -m644 data/io.github.hariel1985.TopManager.Daemon.service "$OUT/share/dbus-1/services/"
 install -m644 data/topmanagerd.service.in "$OUT/share/systemd/"
 cp -r shell-extension/topmanager@hariel1985.github.io "$OUT/share/gnome-shell/extensions/"
 cp LICENSE README.md "$OUT/"

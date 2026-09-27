@@ -10,7 +10,7 @@ use zbus::Connection;
 pub async fn send(conn: &Connection, alert: &SystemAlert) -> zbus::Result<()> {
     let mut hints: HashMap<&str, Value<'_>> = HashMap::new();
     // Lets GNOME attribute the notification to the app (icon, settings).
-    hints.insert("desktop-entry", Value::from(bus::NAME));
+    hints.insert("desktop-entry", Value::from(bus::APP_ID));
     let urgency: u8 = match alert.severity {
         AlertSeverity::Critical => 2,
         _ => 1,

@@ -1,0 +1,28 @@
+[Desktop Entry]
+Type=Application
+Name=TopManager
+GenericName=System Monitor
+Comment=Processes, performance, health, power and storage at a glance
+# @BINDIR@ is filled in by install.sh (desktop files have no home-directory
+# specifier), so the installed file matches wherever the binary went.
+Exec=@BINDIR@/topmanager
+Icon=io.github.hariel1985.TopManager
+Terminal=false
+Categories=GNOME;GTK;System;Monitor;
+Keywords=task;manager;process;cpu;memory;monitor;health;battery;
+StartupNotify=true
+StartupWMClass=io.github.hariel1985.TopManager
+X-GNOME-UsesNotifications=true
+Actions=processes;performance;power;
+
+[Desktop Action processes]
+Name=Processes
+Exec=@BINDIR@/topmanager --page processes
+
+[Desktop Action performance]
+Name=Performance
+Exec=@BINDIR@/topmanager --page performance
+
+[Desktop Action power]
+Name=Power & Storage
+Exec=@BINDIR@/topmanager --page power

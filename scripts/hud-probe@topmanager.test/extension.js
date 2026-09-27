@@ -60,8 +60,24 @@ export default class Probe extends Extension {
             topRows: hud._topBox.get_n_children(),
             seq: hud._data?.seq ?? null,
         }, null, 2));
+        hud.menu.close(false);
         write('done', '1');
+
+        // Screenshot requests from test-hud.sh: it writes a name into
+        // $OUT/request and waits until the file disappears.
+        this._poll = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            const req = `${OUT}/request`;
+            if (GLib.file_test(req, GLib.FileTest.EXISTS)) {
+                const [, bytes] = GLib.file_get_contents(req);
+                const name = new TextDecoder().decode(bytes).trim();
+                shoot(`${name}.png`).then(() => GLib.unlink(req));
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
     }
 
-    disable() {}
+    disable() {
+        if (this._poll)
+            GLib.source_remove(this._poll);
+    }
 }
