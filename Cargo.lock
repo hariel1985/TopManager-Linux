@@ -919,7 +919,7 @@ dependencies = [
 
 [[package]]
 name = "tm-collect"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "libc",
  "tempfile",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "tm-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -937,7 +937,7 @@ dependencies = [
 
 [[package]]
 name = "tm-daemon"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "libc",
  "serde",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "tm-gui"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "gtk4",
  "libadwaita",
