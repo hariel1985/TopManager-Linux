@@ -160,6 +160,9 @@ fn summary() -> Result<(), String> {
         println!("Battery  none");
     }
     println!("Thermal  {:?} max={:?}°C ({:?})", s.thermal.level, s.thermal.max_temp, s.thermal.sensor);
+    for t in &s.thermal.sensors {
+        println!("  {:<10} {:5.1}°C  ({})", t.label, t.temp, t.sensor);
+    }
     println!("Health   {}/100 {}  {:?}", engine.health_score, health::rating(engine.health_score), engine.diagnosis);
     println!("Top CPU:");
     for p in s.top_by_cpu(5) {

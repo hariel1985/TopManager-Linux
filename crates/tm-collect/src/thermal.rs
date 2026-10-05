@@ -2,13 +2,16 @@
 //!
 //! Linux has no single "thermal state" like macOS, so each sensor is rated
 //! against its own trip points (or fixed CPU-ish limits when it has none) and
-//! the hottest rating wins.
+//! the hottest rating wins. Readings are also grouped by component (CPU, GPU,
+//! RAM, …), keeping each component's hottest sensor, so the UI can show more
+//! than the single hottest chip (often the Wi-Fi card).
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use tm_core::health::ThermalLevel;
-use tm_core::model::ThermalInfo;
+use tm_core::model::{SensorKind, TempSensor, ThermalInfo};
 
 use crate::host::{self, Host};
 
@@ -63,6 +66,31 @@ fn zone_trips(dir: &Path) -> Trips {
     trips
 }
 
+/// Component behind an hwmon chip name or thermal zone type.
+pub fn classify(source: &str) -> SensorKind {
+    let n = source.to_ascii_lowercase();
+    let starts = |prefixes: &[&str]| prefixes.iter().any(|p| n.starts_with(p));
+    if starts(&["k10temp", "coretemp", "zenpower", "x86_pkg_temp", "tcpu", "b0d4", "soc_dts"]) || n.contains("cpu") {
+        SensorKind::Cpu
+    } else if starts(&["amdgpu", "radeon", "nouveau", "nvidia", "i915"]) || n == "xe" || n.contains("gpu") {
+        SensorKind::Gpu
+    } else if starts(&["spd5118", "jc42", "tmem"]) || n.contains("dimm") {
+        SensorKind::Memory
+    } else if starts(&["nvme", "drivetemp"]) {
+        SensorKind::Storage
+    } else if starts(&["iwlwifi", "mt76", "mt79", "ath1", "ath9k", "rtw", "brcmf", "wlan"]) || n.contains("_phy") {
+        SensorKind::Wifi
+    } else if n.contains("pch") {
+        SensorKind::Chipset
+    } else if starts(&["bat"]) {
+        SensorKind::Battery
+    } else if starts(&["acpitz", "nct", "it87", "tskn"]) {
+        SensorKind::System
+    } else {
+        SensorKind::Other
+    }
+}
+
 fn level_rank(l: ThermalLevel) -> u8 {
     match l {
         ThermalLevel::Nominal => 0,
@@ -74,14 +102,23 @@ fn level_rank(l: ThermalLevel) -> u8 {
 
 pub fn sample(host: &Host) -> ThermalInfo {
     let mut info = ThermalInfo::default();
-    let mut consider = |name: String, temp: f64, trips: Trips| {
+    let mut parts: BTreeMap<(SensorKind, String), TempSensor> = BTreeMap::new();
+    // `source` is the chip / zone type the component is derived from, `name`
+    // the full sensor name shown to the user.
+    let mut consider = |source: &str, name: String, temp: f64, trips: Trips| {
         let level = rate(temp, trips);
         if level_rank(level) > level_rank(info.level) {
             info.level = level;
         }
         if info.max_temp.is_none_or(|m| temp > m) {
             info.max_temp = Some(temp);
-            info.sensor = Some(name);
+            info.sensor = Some(name.clone());
+        }
+        let kind = classify(source);
+        let label = if kind == SensorKind::Other { source.to_string() } else { kind.label().to_string() };
+        let part = parts.entry((kind, label.clone())).or_default();
+        if part.label.is_empty() || temp > part.temp {
+            *part = TempSensor { kind, label, sensor: name, temp };
         }
     };
 
@@ -93,7 +130,7 @@ pub fn sample(host: &Host) -> ThermalInfo {
             let dir = e.path();
             let Some(temp) = millideg(&dir.join("temp")) else { continue };
             let name = host::read_trimmed(dir.join("type")).unwrap_or_else(|| "thermal".into());
-            consider(name, temp, zone_trips(&dir));
+            consider(&name, name.clone(), temp, zone_trips(&dir));
         }
     }
 
@@ -107,10 +144,11 @@ pub fn sample(host: &Host) -> ThermalInfo {
                 let max = millideg(&dir.join(format!("temp{i}_max")));
                 let label = host::read_trimmed(dir.join(format!("temp{i}_label")));
                 let name = label.map(|l| format!("{chip} {l}")).unwrap_or_else(|| chip.clone());
-                consider(name, temp, Trips { passive: None, hot: max, critical: crit });
+                consider(&chip, name, temp, Trips { passive: None, hot: max, critical: crit });
             }
         }
     }
+    info.sensors = parts.into_values().collect();
     info
 }
 
@@ -153,6 +191,70 @@ mod tests {
         assert_eq!(info.level, ThermalLevel::Serious);
         assert_eq!(info.max_temp, Some(92.0));
         assert_eq!(info.sensor.as_deref(), Some("coretemp Package id 0"));
+        let parts: Vec<_> = info.sensors.iter().map(|p| (p.label.as_str(), p.temp)).collect();
+        assert_eq!(parts, [("CPU", 92.0), ("System", 45.0)]);
+    }
+
+    #[test]
+    fn every_component_is_listed() {
+        // AMD laptop: the Wi-Fi card is the hottest chip, but CPU, GPU and
+        // both DIMMs must still be reported.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(root, "sys/class/thermal/thermal_zone0/type", "acpitz\n");
+        write(root, "sys/class/thermal/thermal_zone0/temp", "20000\n");
+        write(root, "sys/class/hwmon/hwmon0/name", "acpitz\n");
+        write(root, "sys/class/hwmon/hwmon0/temp1_input", "20000\n");
+        write(root, "sys/class/hwmon/hwmon1/name", "amdgpu\n");
+        write(root, "sys/class/hwmon/hwmon1/temp1_label", "edge\n");
+        write(root, "sys/class/hwmon/hwmon1/temp1_input", "40000\n");
+        write(root, "sys/class/hwmon/hwmon2/name", "k10temp\n");
+        write(root, "sys/class/hwmon/hwmon2/temp1_label", "Tctl\n");
+        write(root, "sys/class/hwmon/hwmon2/temp1_input", "42000\n");
+        write(root, "sys/class/hwmon/hwmon3/name", "spd5118\n");
+        write(root, "sys/class/hwmon/hwmon3/temp1_input", "49750\n");
+        write(root, "sys/class/hwmon/hwmon4/name", "spd5118\n");
+        write(root, "sys/class/hwmon/hwmon4/temp1_input", "48750\n");
+        write(root, "sys/class/hwmon/hwmon5/name", "mt7921_phy0\n");
+        write(root, "sys/class/hwmon/hwmon5/temp1_input", "60000\n");
+        write(root, "sys/class/hwmon/hwmon6/name", "nvme\n");
+        write(root, "sys/class/hwmon/hwmon6/temp1_label", "Composite\n");
+        write(root, "sys/class/hwmon/hwmon6/temp1_input", "38850\n");
+        write(root, "sys/class/hwmon/hwmon7/name", "r8169_0_500:00\n");
+        write(root, "sys/class/hwmon/hwmon7/temp1_input", "51000\n");
+        let info = sample(&Host::at(root));
+        assert_eq!(info.max_temp, Some(60.0));
+        assert_eq!(info.sensor.as_deref(), Some("mt7921_phy0"));
+        let parts: Vec<_> = info.sensors.iter().map(|p| (p.label.as_str(), p.temp)).collect();
+        assert_eq!(
+            parts,
+            [
+                ("CPU", 42.0),
+                ("GPU", 40.0),
+                ("RAM", 49.75),
+                ("SSD", 38.85),
+                ("Wi-Fi", 60.0),
+                ("System", 20.0),
+                ("r8169_0_500:00", 51.0),
+            ]
+        );
+        assert_eq!(info.sensors[0].sensor, "k10temp Tctl");
+        assert_eq!(info.sensors[2].sensor, "spd5118");
+    }
+
+    #[test]
+    fn classifies_common_chips() {
+        assert_eq!(classify("coretemp"), SensorKind::Cpu);
+        assert_eq!(classify("x86_pkg_temp"), SensorKind::Cpu);
+        assert_eq!(classify("cpu-thermal"), SensorKind::Cpu);
+        assert_eq!(classify("nouveau"), SensorKind::Gpu);
+        assert_eq!(classify("jc42"), SensorKind::Memory);
+        assert_eq!(classify("drivetemp"), SensorKind::Storage);
+        assert_eq!(classify("iwlwifi_1"), SensorKind::Wifi);
+        assert_eq!(classify("pch_cannonlake"), SensorKind::Chipset);
+        assert_eq!(classify("BAT0"), SensorKind::Battery);
+        assert_eq!(classify("nct6798"), SensorKind::System);
+        assert_eq!(classify("xen_something"), SensorKind::Other);
     }
 
     #[test]

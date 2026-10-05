@@ -214,12 +214,61 @@ impl PowerInfo {
     }
 }
 
+/// What a temperature sensor measures; the order is the display order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SensorKind {
+    Cpu,
+    Gpu,
+    Memory,
+    Storage,
+    Wifi,
+    Chipset,
+    Battery,
+    /// ACPI / motherboard zones.
+    System,
+    #[default]
+    Other,
+}
+
+impl SensorKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            SensorKind::Cpu => "CPU",
+            SensorKind::Gpu => "GPU",
+            SensorKind::Memory => "RAM",
+            SensorKind::Storage => "SSD",
+            SensorKind::Wifi => "Wi-Fi",
+            SensorKind::Chipset => "Chipset",
+            SensorKind::Battery => "Battery",
+            SensorKind::System => "System",
+            SensorKind::Other => "Other",
+        }
+    }
+}
+
+/// The hottest reading of one component.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct TempSensor {
+    pub kind: SensorKind,
+    /// Display name: the kind's label, or the chip name for `Other`.
+    pub label: String,
+    /// The underlying sensor, e.g. "k10temp Tctl".
+    pub sensor: String,
+    /// °C.
+    pub temp: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct ThermalInfo {
     pub level: ThermalLevel,
     /// Hottest sensor reading, °C.
     pub max_temp: Option<f64>,
     pub sensor: Option<String>,
+    /// One entry per component (CPU, GPU, RAM, …), in display order.
+    pub sensors: Vec<TempSensor>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

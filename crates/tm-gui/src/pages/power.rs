@@ -259,15 +259,19 @@ impl PowerPage {
             (Some(t), None) => format!("{thermal} · {t:.0} °C"),
             _ => format!("{thermal} (no sensors)"),
         };
-        self.system.set(vec![
+        let mut items = vec![
             kv("Operating system", sys.os_name.clone()),
             kv("Kernel", sys.kernel.clone()),
             kv("Computer name", sys.hostname.clone()),
             kv("Processor", format!("{} · {} cores · {}", sys.cpu_model, sys.cpu_count, sys.architecture)),
             kv("Uptime", format_uptime(sys.uptime_secs)),
-            kv("Thermal state", temp),
             kv("Desktop", sys.desktop.clone().unwrap_or_else(|| "—".into())),
-        ]);
+            kv("Thermal state", temp),
+        ];
+        for t in &s.thermal.sensors {
+            items.push(kv(&format!("{} temperature", t.label), format!("{:.0} °C ({})", t.temp, t.sensor)));
+        }
+        self.system.set(items);
 
         self.graphics.set(if s.gpus.is_empty() {
             vec![kv("GPU", "none detected")]
