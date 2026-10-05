@@ -186,11 +186,16 @@ class Indicator extends PanelMenu.Button {
             up: metricRow(_('Upload'), true),
             gpu: metricRow(_('GPU'), false),
             battery: metricRow(_('Battery'), false),
-            thermal: metricRow(_('Temperature'), false),
         };
         const metrics = new St.BoxLayout({vertical: true, style_class: 'tm-section'});
         Object.values(this._rows).forEach(r => metrics.add_child(r.box));
         content.add_child(metrics);
+
+        // temperatures, one row per component
+        this._tempHeader = new St.Label({text: _('Temperatures'), style_class: 'tm-caption tm-section-header'});
+        this._tempBox = new St.BoxLayout({vertical: true, style_class: 'tm-section'});
+        content.add_child(this._tempHeader);
+        content.add_child(this._tempBox);
 
         // top processes
         const topHeader = new St.BoxLayout({style_class: 'tm-section-header'});
@@ -342,12 +347,24 @@ class Indicator extends PanelMenu.Button {
                 : b.tte ? ` · ${formatMinutes(b.tte)}` : b.plugged ? ` · ${_('plugged in')}` : '';
             r.battery.value.text = `${b.pct}%${extra}`;
         }
-        r.thermal.box.visible = d.thermal.temp != null;
-        if (d.thermal.temp != null)
-            r.thermal.value.text = `${Math.round(d.thermal.temp)} °C`;
 
+        this._renderTemps();
         this._renderTop();
         this._renderAlerts();
+    }
+
+    _renderTemps() {
+        const t = this._data.thermal;
+        // Older daemons only send the hottest reading.
+        const sensors = t.sensors ?? (t.temp != null ? [{label: _('Temperature'), temp: t.temp}] : []);
+        this._tempHeader.visible = sensors.length > 0;
+        this._tempBox.visible = sensors.length > 0;
+        this._tempBox.destroy_all_children();
+        for (const s of sensors) {
+            const row = metricRow(_(s.label), false);
+            row.value.text = `${Math.round(s.temp)} °C`;
+            this._tempBox.add_child(row.box);
+        }
     }
 
     _renderTop() {

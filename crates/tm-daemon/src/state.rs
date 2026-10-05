@@ -207,7 +207,12 @@ impl State {
                 "tte": s.power.time_to_empty_min, "ttf": s.power.time_to_full_min,
                 "watts": s.power.power_watts,
             })),
-            "thermal": { "level": s.thermal.level, "temp": s.thermal.max_temp },
+            "thermal": {
+                "level": s.thermal.level, "temp": s.thermal.max_temp,
+                "sensors": s.thermal.sensors.iter()
+                    .map(|t| json!({ "kind": t.kind, "label": t.label, "temp": t.temp }))
+                    .collect::<Vec<_>>(),
+            },
             "health": {
                 "score": self.engine.health_score,
                 "rating": health::rating(self.engine.health_score),
