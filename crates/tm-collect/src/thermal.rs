@@ -138,10 +138,14 @@ pub fn sample(host: &Host) -> ThermalInfo {
         for e in entries.flatten() {
             let dir = e.path();
             let chip = host::read_trimmed(dir.join("name")).unwrap_or_else(|| "hwmon".into());
+            // DIMM sensors (spd5118, jc42) report the JEDEC event limit as
+            // `max` (55 °C on DDR5), well below where memory gets hot; only
+            // their `crit` is a real limit.
+            let use_max = classify(&chip) != SensorKind::Memory;
             for i in 1..32 {
                 let Some(temp) = millideg(&dir.join(format!("temp{i}_input"))) else { continue };
                 let crit = millideg(&dir.join(format!("temp{i}_crit")));
-                let max = millideg(&dir.join(format!("temp{i}_max")));
+                let max = millideg(&dir.join(format!("temp{i}_max"))).filter(|_| use_max);
                 let label = host::read_trimmed(dir.join(format!("temp{i}_label")));
                 let name = label.map(|l| format!("{chip} {l}")).unwrap_or_else(|| chip.clone());
                 consider(&chip, name, temp, Trips { passive: None, hot: max, critical: crit });
@@ -240,6 +244,21 @@ mod tests {
         );
         assert_eq!(info.sensors[0].sensor, "k10temp Tctl");
         assert_eq!(info.sensors[2].sensor, "spd5118");
+    }
+
+    #[test]
+    fn dimm_event_limit_is_not_overheating() {
+        // DDR5 SPD hub: max = JEDEC event limit (55 °C), crit = 85 °C.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(root, "sys/class/hwmon/hwmon3/name", "spd5118\n");
+        write(root, "sys/class/hwmon/hwmon3/temp1_input", "58000\n");
+        write(root, "sys/class/hwmon/hwmon3/temp1_max", "55000\n");
+        write(root, "sys/class/hwmon/hwmon3/temp1_crit", "85000\n");
+        let info = sample(&Host::at(root));
+        assert_eq!(info.level, ThermalLevel::Nominal);
+        write(root, "sys/class/hwmon/hwmon3/temp1_input", "82000\n");
+        assert_eq!(sample(&Host::at(root)).level, ThermalLevel::Critical);
     }
 
     #[test]
